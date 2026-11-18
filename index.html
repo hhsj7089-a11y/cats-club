@@ -1,0 +1,1665 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>냥이 리듬 댄스 스테이지 - 음악 비트에 맞춰 춤추는 고양이 사이트</title>
+<meta name="description" content="좋아하는 MP3 음악이나 유튜브 링크를 넣으면 실시간 노래 리듬과 비트에 맞춰 1~4마리 고양이들이 자동으로 춤추는 인터랙티브 웹 무대입니다.">
+<meta name="keywords" content="냥이 리듬 댄스 스테이지, 음악 맞춰 춤추는 고양이, 고양이 댄스 웹, 리듬 고양이, 치즈태비 삼색냥">
+<style>
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #0f172a;
+    font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', -apple-system, sans-serif;
+    color: #f8fafc;
+    touch-action: manipulation;
+  }
+
+  #stage-canvas {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    z-index: 1;
+  }
+
+  /* 상단 헤더 */
+  .top-hud {
+    position: fixed;
+    top: max(10px, env(safe-area-inset-top));
+    left: 12px;
+    right: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    z-index: 20;
+    pointer-events: none;
+  }
+  .title-pill {
+    pointer-events: auto;
+    background: rgba(15, 23, 42, 0.78);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    padding: 7px 13px;
+    border-radius: 999px;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+    min-width: 0;
+  }
+  .title-pill h1 {
+    font-size: clamp(13px, 3.4vw, 16px);
+    font-weight: 800;
+    color: #fde68a;
+    white-space: nowrap;
+  }
+  .bpm-badge {
+    background: rgba(245, 158, 11, 0.22);
+    border: 1px solid rgba(251, 191, 36, 0.45);
+    color: #fcd34d;
+    font-size: 11px;
+    font-weight: 800;
+    padding: 2px 8px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+
+  .toggle-panel-btn {
+    pointer-events: auto;
+    background: rgba(30, 41, 59, 0.88);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1.5px solid rgba(251, 191, 36, 0.45);
+    color: #fef3c7;
+    padding: 7px 13px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 800;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+    transition: transform 0.12s;
+  }
+  .toggle-panel-btn:active {
+    transform: scale(0.95);
+  }
+
+  /* 설정 드로어 패널 */
+  .settings-drawer {
+    position: fixed;
+    top: calc(max(10px, env(safe-area-inset-top)) + 44px);
+    right: 12px;
+    left: 12px;
+    max-width: 440px;
+    margin-left: auto;
+    max-height: 46dvh;
+    background: rgba(15, 23, 42, 0.86);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 18px;
+    padding: 12px;
+    z-index: 25;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    overflow-y: auto;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+  }
+  .settings-drawer.collapsed {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-10px) scale(0.98);
+  }
+
+  .tab-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    background: rgba(30, 41, 59, 0.8);
+    padding: 4px;
+    border-radius: 12px;
+  }
+  .tab-btn {
+    border: none;
+    background: transparent;
+    color: #cbd5e1;
+    padding: 7px 6px;
+    border-radius: 9px;
+    font-size: 12px;
+    font-weight: 800;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .tab-btn.active {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(245, 158, 11, 0.4);
+  }
+
+  .tab-pane {
+    display: none;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .tab-pane.active {
+    display: flex;
+  }
+
+  .sec-label {
+    font-size: 11px;
+    font-weight: 800;
+    color: #94a3b8;
+    margin-bottom: 5px;
+    display: flex;
+    justify-content: space-between;
+  }
+  .sec-label span {
+    color: #fbbf24;
+  }
+
+  .chip-grid-3 {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+  }
+  .chip-grid-4 {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+  }
+  .chip-grid-2 {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+  }
+  .opt-btn {
+    background: rgba(30, 41, 59, 0.88);
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    color: #e2e8f0;
+    padding: 7px 6px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    text-align: center;
+    white-space: nowrap;
+  }
+  .opt-btn.active {
+    background: linear-gradient(135deg, #f59e0b, #ea580c);
+    border-color: #fde68a;
+    color: #fff;
+    box-shadow: 0 2px 10px rgba(234, 88, 12, 0.4);
+  }
+
+  /* 고양이 슬롯 설정 */
+  .cat-slot-card {
+    background: rgba(30, 41, 59, 0.72);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    border-radius: 12px;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .slot-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    font-weight: 800;
+    color: #fde68a;
+  }
+  .breed-select {
+    background: #0f172a;
+    color: #f8fafc;
+    border: 1px solid rgba(251, 191, 36, 0.4);
+    border-radius: 8px;
+    padding: 5px 8px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  /* 유튜브 플로팅 미니 플레이어 */
+  .yt-floating {
+    position: fixed;
+    left: 12px;
+    bottom: calc(max(12px, env(safe-area-inset-bottom)) + 114px);
+    width: min(290px, calc(100vw - 24px));
+    background: rgba(15, 23, 42, 0.92);
+    backdrop-filter: blur(10px);
+    border: 1.5px solid rgba(239, 68, 68, 0.55);
+    border-radius: 14px;
+    padding: 8px;
+    z-index: 22;
+    display: none;
+    flex-direction: column;
+    gap: 7px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+  }
+  .yt-floating.visible {
+    display: flex;
+  }
+  .yt-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    font-weight: 800;
+    color: #fca5a5;
+  }
+  .yt-mini-btns {
+    display: flex;
+    gap: 5px;
+  }
+  .yt-mini-btns button {
+    background: rgba(51, 65, 85, 0.9);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: #fff;
+    font-size: 11px;
+    padding: 2px 7px;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .yt-video-box {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    background: #000;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .yt-video-box.minimized {
+    display: none;
+  }
+  .yt-tempo-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .yt-tempo-bar input[type="range"] {
+    flex: 1;
+    accent-color: #f59e0b;
+  }
+  .tap-tempo-btn {
+    background: #f59e0b;
+    color: #1e293b;
+    border: none;
+    border-radius: 7px;
+    padding: 4px 8px;
+    font-size: 11px;
+    font-weight: 900;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  /* 하단 오디오 컨트롤 독 */
+  .bottom-dock {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: max(10px, env(safe-area-inset-bottom));
+    max-width: 640px;
+    margin: 0 auto;
+    background: rgba(15, 23, 42, 0.86);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 18px;
+    padding: 10px 12px;
+    z-index: 25;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  }
+  .yt-input-row {
+    display: flex;
+    gap: 6px;
+  }
+  .yt-input {
+    flex: 1;
+    min-width: 0;
+    background: rgba(30, 41, 59, 0.95);
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    border-radius: 10px;
+    padding: 7px 10px;
+    color: #f8fafc;
+    font-size: 12px;
+    outline: none;
+  }
+  .yt-input:focus {
+    border-color: #ef4444;
+  }
+  .yt-play-btn {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    padding: 7px 12px;
+    font-size: 12px;
+    font-weight: 800;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .audio-btn-row {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .dock-btn {
+    border: none;
+    border-radius: 11px;
+    padding: 8px 11px;
+    font-size: 12px;
+    font-weight: 800;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    white-space: nowrap;
+  }
+  .btn-upload {
+    background: linear-gradient(135deg, #f59e0b, #ea580c);
+    color: #fff;
+    flex: 1;
+  }
+  .btn-demo {
+    background: linear-gradient(135deg, #6366f1, #4f46e5);
+    color: #fff;
+    flex: 1;
+  }
+  .btn-demo.playing {
+    background: linear-gradient(135deg, #10b981, #059669);
+  }
+  .btn-play-pause {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: rgba(51, 65, 85, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #fff;
+    font-size: 14px;
+    flex-shrink: 0;
+    cursor: pointer;
+  }
+
+  .track-status {
+    font-size: 11px;
+    color: #cbd5e1;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+</style>
+</head>
+<body>
+
+<canvas id="stage-canvas"></canvas>
+
+<!-- 상단 헤더 -->
+<header class="top-hud">
+  <div class="title-pill">
+    <h1>🐱 냥이 리듬 댄스 스테이지</h1>
+    <span class="bpm-badge" id="bpmBadge">120 BPM</span>
+  </div>
+  <button class="toggle-panel-btn" id="togglePanelBtn">⚙️ 설정 열기</button>
+</header>
+
+<!-- 설정 패널 -->
+<aside class="settings-drawer collapsed" id="settingsDrawer">
+  <div class="tab-row">
+    <button class="tab-btn active" data-tab="env">🏞️ 배경·날씨</button>
+    <button class="tab-btn" data-tab="cats">🐾 고양이 설정</button>
+    <button class="tab-btn" data-tab="photo">📷 사진 입히기</button>
+  </div>
+
+  <!-- 탭 1: 배경·날씨·계절 -->
+  <div class="tab-pane active" id="pane-env">
+    <div>
+      <div class="sec-label">무대 배경 테마 (6종) <span id="lbl-bg">공원</span></div>
+      <div class="chip-grid-3" id="bg-opts">
+        <button class="opt-btn active" data-val="park">🌳 공원</button>
+        <button class="opt-btn" data-val="street">🏙️ 거리</button>
+        <button class="opt-btn" data-val="club">🪩 동물 클럽</button>
+        <button class="opt-btn" data-val="room">🛋️ 아늑한 방</button>
+        <button class="opt-btn" data-val="plane">✈️ 비행기 안</button>
+        <button class="opt-btn" data-val="train">🚆 기차 안</button>
+      </div>
+    </div>
+
+    <div>
+      <div class="sec-label">시간대 <span id="lbl-time">낮</span></div>
+      <div class="chip-grid-2" id="time-opts">
+        <button class="opt-btn active" data-val="day">☀️ 낮 (화창함)</button>
+        <button class="opt-btn" data-val="night">🌙 밤 (야경/조명)</button>
+      </div>
+    </div>
+
+    <div>
+      <div class="sec-label">날씨 효과 <span id="lbl-weather">맑음</span></div>
+      <div class="chip-grid-4" id="weather-opts">
+        <button class="opt-btn active" data-val="clear">☀️ 맑음</button>
+        <button class="opt-btn" data-val="rain">🌧️ 비</button>
+        <button class="opt-btn" data-val="snow">❄️ 눈</button>
+        <button class="opt-btn" data-val="fog">🌫️ 안개</button>
+      </div>
+    </div>
+
+    <div>
+      <div class="sec-label">계절 분위기 <span id="lbl-season">봄</span></div>
+      <div class="chip-grid-4" id="season-opts">
+        <button class="opt-btn active" data-val="spring">🌸 봄</button>
+        <button class="opt-btn" data-val="summer">🌿 여름</button>
+        <button class="opt-btn" data-val="autumn">🍁 가을</button>
+        <button class="opt-btn" data-val="winter">⛄ 겨울</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 탭 2: 고양이 마릿수 및 디자인 -->
+  <div class="tab-pane" id="pane-cats">
+    <div>
+      <div class="sec-label">무대 위 고양이 수 <span id="lbl-count">1마리</span></div>
+      <div class="chip-grid-4" id="count-opts">
+        <button class="opt-btn active" data-val="1">1마리</button>
+        <button class="opt-btn" data-val="2">2마리</button>
+        <button class="opt-btn" data-val="3">3마리</button>
+        <button class="opt-btn" data-val="4">4마리</button>
+      </div>
+    </div>
+    <div id="cat-slots-container" style="display:flex; flex-direction:column; gap:7px;"></div>
+  </div>
+
+  <!-- 탭 3: 내 고양이 사진 얼굴 적용 -->
+  <div class="tab-pane" id="pane-photo">
+    <div class="sec-label">내 고양이 사진으로 얼굴 바꾸기</div>
+    <p style="font-size:11px; color:#cbd5e1; line-height:1.45;">
+      사진을 올리면 선택한 고양이의 얼굴에 내 고양이 사진이 원형으로 합성되어 리듬에 맞춰 함께 춤춥니다!
+    </p>
+    <div style="display:flex; gap:6px; align-items:center;">
+      <select id="photoTargetCat" class="breed-select" style="flex:1;">
+        <option value="0">1번 고양이에게 적용</option>
+        <option value="1">2번 고양이에게 적용</option>
+        <option value="2">3번 고양이에게 적용</option>
+        <option value="3">4번 고양이에게 적용</option>
+      </select>
+      <label class="dock-btn btn-upload" style="flex:1; cursor:pointer;">
+        📷 사진 선택
+        <input type="file" id="catPhotoInput" accept="image/*" style="display:none;">
+      </label>
+    </div>
+    <button class="opt-btn" id="clearPhotosBtn">🔄 기본 일러스트 얼굴로 되돌리기</button>
+  </div>
+</aside>
+
+<!-- 유튜브 플로팅 미니 플레이어 -->
+<div class="yt-floating" id="ytFloating">
+  <div class="yt-head">
+    <span>📺 유튜브 리듬 플레이어</span>
+    <div class="yt-mini-btns">
+      <button id="ytToggleVisBtn">접기</button>
+      <button id="ytCloseBtn">닫기</button>
+    </div>
+  </div>
+  <div class="yt-video-box" id="ytVideoBox">
+    <div id="yt-player-mount"></div>
+  </div>
+  <div class="yt-tempo-bar">
+    <span id="ytBpmLabel" style="color:#fbbf24; min-width:56px;">120 BPM</span>
+    <input type="range" id="ytBpmSlider" min="65" max="180" value="120">
+    <button class="tap-tempo-btn" id="tapTempoBtn">👆 박자 탭</button>
+  </div>
+</div>
+
+<!-- 하단 오디오 컨트롤 -->
+<footer class="bottom-dock">
+  <div class="yt-input-row">
+    <input type="text" class="yt-input" id="ytUrlInput" placeholder="유튜브 링크 붙여넣기 (https://youtu.be/...)">
+    <button class="yt-play-btn" id="ytLoadBtn">유튜브 재생</button>
+  </div>
+  <div class="audio-btn-row">
+    <label class="dock-btn btn-upload" style="cursor:pointer;">
+      🎵 음악 첨부
+      <input type="file" id="audioFileInput" accept="audio/*" style="display:none;">
+    </label>
+    <button class="dock-btn btn-demo" id="demoBeatBtn">🎹 데모 댄스 비트</button>
+    <button class="btn-play-pause" id="playPauseBtn" title="재생/일시정지">▶</button>
+  </div>
+  <div class="track-status" id="trackStatus">음악 파일을 첨부하거나 데모 댄스 비트 / 유튜브 링크를 실행해 보세요!</div>
+</footer>
+
+<audio id="htmlAudio" crossorigin="anonymous" style="display:none;"></audio>
+
+<script>
+(function() {
+  const canvas = document.getElementById('stage-canvas');
+  const ctx = canvas.getContext('2d');
+
+  // 상태 관리
+  const state = {
+    bg: 'park',
+    time: 'day',
+    weather: 'clear',
+    season: 'spring',
+    catCount: 1,
+    cats: [
+      { breed: 'cheese', photo: null, phase: 0 },
+      { breed: 'calico', photo: null, phase: 1.5 },
+      { breed: 'black',  photo: null, phase: 3.1 },
+      { breed: 'white',  photo: null, phase: 4.7 }
+    ],
+    mode: 'idle', // 'idle' | 'file' | 'demo' | 'youtube'
+    isPlaying: false,
+    bpm: 120,
+    bassEnergy: 0,
+    trebleEnergy: 0,
+    beatPulse: 0,
+    danceTime: 0
+  };
+
+  const BREEDS = {
+    cheese:   { name: '치즈태비 고양이', body: '#e69545', belly: '#fbe0b8', stripe: '#b85c14', earIn: '#f4a998', eye: '#b45309' },
+    calico:   { name: '삼색 고양이',     body: '#fffaf3', belly: '#ffffff', stripe: '#e07a2d', patch2: '#2d2a2e', earIn: '#f4a998', eye: '#d97706' },
+    black:    { name: '검은 고양이',     body: '#26262c', belly: '#36363f', stripe: '#141418', earIn: '#6b4c5b', eye: '#facc15' },
+    white:    { name: '흰 고양이',       body: '#f8fafc', belly: '#ffffff', stripe: '#e2e8f0', earIn: '#fbcfe8', eye: '#38bdf8' },
+    tuxedo:   { name: '턱시도 고양이',   body: '#1e293b', belly: '#ffffff', stripe: '#0f172a', earIn: '#f4a998', eye: '#4ade80' },
+    mackerel: { name: '고등어태비',      body: '#8b929e', belly: '#e2e8f0', stripe: '#334155', earIn: '#e5a39e', eye: '#eab308' }
+  };
+
+  const LABELS = {
+    bg: { park: '공원', street: '거리', club: '동물 클럽', room: '아늑한 방', plane: '비행기 안', train: '기차 안' },
+    time: { day: '낮', night: '밤' },
+    weather: { clear: '맑음', rain: '비', snow: '눈', fog: '안개' },
+    season: { spring: '봄', summer: '여름', autumn: '가을', winter: '겨울' }
+  };
+
+  // 모바일 터치 & 클릭 통합 바인딩
+  function bindTap(el, handler) {
+    if (!el) return;
+    let moved = false;
+    el.addEventListener('touchstart', () => { moved = false; }, { passive: true });
+    el.addEventListener('touchmove', () => { moved = true; }, { passive: true });
+    el.addEventListener('touchend', (e) => {
+      if (!moved) {
+        e.preventDefault();
+        handler(e);
+      }
+    });
+    el.addEventListener('click', (e) => {
+      handler(e);
+    });
+  }
+
+  // 설정 패널 토글
+  const togglePanelBtn = document.getElementById('togglePanelBtn');
+  const settingsDrawer = document.getElementById('settingsDrawer');
+  bindTap(togglePanelBtn, () => {
+    const isCol = settingsDrawer.classList.toggle('collapsed');
+    togglePanelBtn.textContent = isCol ? '⚙️ 설정 열기' : '✕ 설정 닫기';
+  });
+
+  // 탭 전환
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    bindTap(btn, () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('pane-' + btn.dataset.tab).classList.add('active');
+    });
+  });
+
+  // 옵션 버튼 그룹 연결
+  function setupOptionGroup(containerId, stateKey, labelId) {
+    const box = document.getElementById(containerId);
+    if (!box) return;
+    box.querySelectorAll('.opt-btn').forEach(btn => {
+      bindTap(btn, () => {
+        box.querySelectorAll('.opt-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const val = btn.dataset.val;
+        state[stateKey] = stateKey === 'catCount' ? parseInt(val, 10) : val;
+        if (labelId) {
+          const lbl = document.getElementById(labelId);
+          if (lbl) {
+            lbl.textContent = stateKey === 'catCount' ? `${val}마리` : LABELS[stateKey][val];
+          }
+        }
+        if (stateKey === 'catCount') renderCatSlots();
+      });
+    });
+  }
+
+  setupOptionGroup('bg-opts', 'bg', 'lbl-bg');
+  setupOptionGroup('time-opts', 'time', 'lbl-time');
+  setupOptionGroup('weather-opts', 'weather', 'lbl-weather');
+  setupOptionGroup('season-opts', 'season', 'lbl-season');
+  setupOptionGroup('count-opts', 'catCount', 'lbl-count');
+
+  // 고양이 슬롯 UI 렌더링
+  function renderCatSlots() {
+    const container = document.getElementById('cat-slots-container');
+    container.innerHTML = '';
+    for (let i = 0; i < state.catCount; i++) {
+      const card = document.createElement('div');
+      card.className = 'cat-slot-card';
+      const header = document.createElement('div');
+      header.className = 'slot-header';
+      header.innerHTML = `<span>🐱 ${i + 1}번 댄서 고양이</span>`;
+
+      const sel = document.createElement('select');
+      sel.className = 'breed-select';
+      Object.entries(BREEDS).forEach(([key, info]) => {
+        const opt = document.createElement('option');
+        opt.value = key;
+        opt.textContent = info.name;
+        if (state.cats[i].breed === key) opt.selected = true;
+        sel.appendChild(opt);
+      });
+      sel.addEventListener('change', () => {
+        state.cats[i].breed = sel.value;
+      });
+
+      header.appendChild(sel);
+      card.appendChild(header);
+      container.appendChild(card);
+    }
+  }
+  renderCatSlots();
+
+  // 내 고양이 사진 업로드
+  const catPhotoInput = document.getElementById('catPhotoInput');
+  catPhotoInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const idx = parseInt(document.getElementById('photoTargetCat').value, 10);
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const img = new Image();
+      img.onload = () => {
+        state.cats[idx].photo = img;
+        if (state.catCount <= idx) {
+          state.catCount = idx + 1;
+          document.getElementById('lbl-count').textContent = `${state.catCount}마리`;
+          document.querySelectorAll('#count-opts .opt-btn').forEach(b => {
+            b.classList.toggle('active', parseInt(b.dataset.val, 10) === state.catCount);
+          });
+          renderCatSlots();
+        }
+        document.getElementById('trackStatus').textContent = `📷 ${idx + 1}번 고양이에게 사진이 적용되었습니다!`;
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  bindTap(document.getElementById('clearPhotosBtn'), () => {
+    state.cats.forEach(c => c.photo = null);
+    document.getElementById('trackStatus').textContent = '기본 고양이 일러스트로 복원되었습니다.';
+  });
+
+  // ==========================================
+  // Web Audio API & 데모 신시사이저 & 유튜브 엔진
+  // ==========================================
+  let audioCtx = null;
+  let analyser = null;
+  let freqData = null;
+  let mediaSource = null;
+  let demoInterval = null;
+  let demoStep = 0;
+
+  const htmlAudio = document.getElementById('htmlAudio');
+  const demoBeatBtn = document.getElementById('demoBeatBtn');
+  const playPauseBtn = document.getElementById('playPauseBtn');
+  const trackStatus = document.getElementById('trackStatus');
+  const bpmBadge = document.getElementById('bpmBadge');
+
+  function ensureAudioContext() {
+    if (!audioCtx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) audioCtx = new AC();
+    }
+    if (audioCtx && audioCtx.state === 'suspended') {
+      audioCtx.resume().catch(() => {});
+    }
+  }
+
+  function stopAllSources() {
+    if (demoInterval) {
+      clearInterval(demoInterval);
+      demoInterval = null;
+    }
+    demoBeatBtn.classList.remove('playing');
+    demoBeatBtn.textContent = '🎹 데모 댄스 비트';
+
+    if (!htmlAudio.paused) {
+      htmlAudio.pause();
+    }
+    if (ytPlayer && typeof ytPlayer.pauseVideo === 'function') {
+      try { ytPlayer.pauseVideo(); } catch (e) {}
+    }
+    state.isPlaying = false;
+    playPauseBtn.textContent = '▶';
+  }
+
+  // 1. 내 음악 파일 첨부
+  document.getElementById('audioFileInput').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    stopAllSources();
+    ensureAudioContext();
+
+    const url = URL.createObjectURL(file);
+    htmlAudio.src = url;
+    state.mode = 'file';
+
+    if (audioCtx && !mediaSource) {
+      try {
+        mediaSource = audioCtx.createMediaElementSource(htmlAudio);
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 256;
+        freqData = new Uint8Array(analyser.frequencyBinCount);
+        mediaSource.connect(analyser);
+        analyser.connect(audioCtx.destination);
+      } catch (err) {}
+    }
+
+    htmlAudio.play().then(() => {
+      state.isPlaying = true;
+      playPauseBtn.textContent = '⏸';
+      trackStatus.textContent = `🎵 재생 중: ${file.name}`;
+    }).catch(() => {
+      trackStatus.textContent = '재생 버튼을 눌러 음악을 시작하세요!';
+    });
+  });
+
+  // 2. 데모 신시사이저 댄스 비트
+  function playDemoSynthStep(step) {
+    if (!audioCtx) return;
+    const now = audioCtx.currentTime;
+
+    // 킥 드럼 (4박자)
+    if (step % 4 === 0) {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(145, now);
+      osc.frequency.exponentialRampToValueAtTime(42, now + 0.14);
+      gain.gain.setValueAtTime(0.45, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(now);
+      osc.stop(now + 0.16);
+
+      state.bassEnergy = 1.0;
+      state.beatPulse = 1.0;
+    }
+
+    // 하이햇 & 스네어
+    if (step % 4 === 2) {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(240, now);
+      gain.gain.setValueAtTime(0.22, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.11);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(now);
+      osc.stop(now + 0.11);
+      state.trebleEnergy = 0.85;
+    }
+
+    // 통통 튀는 고양이 멜로디 아르페지오
+    const notes = [523.25, 659.25, 783.99, 1046.5, 783.99, 659.25, 587.33, 880.0];
+    const freq = notes[step % notes.length];
+    const mOsc = audioCtx.createOscillator();
+    const mGain = audioCtx.createGain();
+    mOsc.type = 'sine';
+    mOsc.frequency.setValueAtTime(freq, now);
+    mGain.gain.setValueAtTime(0.11, now);
+    mGain.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+    mOsc.connect(mGain);
+    mGain.connect(audioCtx.destination);
+    mOsc.start(now);
+    mOsc.stop(now + 0.14);
+    state.trebleEnergy = Math.max(state.trebleEnergy, 0.55);
+  }
+
+  function startDemoBeat() {
+    stopAllSources();
+    ensureAudioContext();
+    state.mode = 'demo';
+    state.bpm = 124;
+    bpmBadge.textContent = '124 BPM';
+    state.isPlaying = true;
+    playPauseBtn.textContent = '⏸';
+    demoBeatBtn.classList.add('playing');
+    demoBeatBtn.textContent = '⏹ 데모 정지';
+    trackStatus.textContent = '🎹 내장 신시사이저 냥이 댄스 비트 재생 중!';
+
+    demoStep = 0;
+    playDemoSynthStep(demoStep++);
+    const stepMs = (60 / state.bpm / 2) * 1000;
+    demoInterval = setInterval(() => {
+      if (state.isPlaying) {
+        playDemoSynthStep(demoStep++);
+      }
+    }, stepMs);
+  }
+
+  bindTap(demoBeatBtn, () => {
+    if (state.mode === 'demo' && state.isPlaying) {
+      stopAllSources();
+      trackStatus.textContent = '데모 비트가 정지되었습니다.';
+    } else {
+      startDemoBeat();
+    }
+  });
+
+  // 3. 유튜브 IFrame API 연동
+  let ytPlayer = null;
+  let ytApiReady = false;
+  let pendingVideoId = null;
+
+  function loadYouTubeApi() {
+    if (window.YT && window.YT.Player) {
+      ytApiReady = true;
+      return;
+    }
+    if (document.getElementById('yt-iframe-api')) return;
+    const tag = document.createElement('script');
+    tag.id = 'yt-iframe-api';
+    tag.src = 'https://www.youtube.com/iframe_api';
+    document.head.appendChild(tag);
+  }
+  loadYouTubeApi();
+
+  window.onYouTubeIframeAPIReady = function() {
+    ytApiReady = true;
+    if (pendingVideoId) {
+      createOrLoadYtPlayer(pendingVideoId);
+      pendingVideoId = null;
+    }
+  };
+
+  function extractYouTubeId(url) {
+    if (!url) return null;
+    const clean = url.trim();
+    const reg = /(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
+    const m = clean.match(reg);
+    if (m) return m[1];
+    if (/^[a-zA-Z0-9_-]{11}$/.test(clean)) return clean;
+    return null;
+  }
+
+  function createOrLoadYtPlayer(videoId) {
+    const ytFloating = document.getElementById('ytFloating');
+    ytFloating.classList.add('visible');
+
+    if (ytPlayer && typeof ytPlayer.loadVideoById === 'function') {
+      ytPlayer.loadVideoById(videoId);
+      return;
+    }
+
+    ytPlayer = new YT.Player('yt-player-mount', {
+      height: '100%',
+      width: '100%',
+      videoId: videoId,
+      playerVars: {
+        autoplay: 1,
+        playsinline: 1,
+        rel: 0,
+        origin: window.location.origin
+      },
+      events: {
+        onReady: (e) => {
+          e.target.playVideo();
+        },
+        onStateChange: (e) => {
+          if (e.data === YT.PlayerState.PLAYING) {
+            state.mode = 'youtube';
+            state.isPlaying = true;
+            playPauseBtn.textContent = '⏸';
+            trackStatus.textContent = '📺 유튜브 음악 재생 중! (박자 탭으로 템포 조절 가능)';
+          } else if (e.data === YT.PlayerState.PAUSED || e.data === YT.PlayerState.ENDED) {
+            if (state.mode === 'youtube') {
+              state.isPlaying = false;
+              playPauseBtn.textContent = '▶';
+            }
+          }
+        },
+        onError: () => {
+          trackStatus.textContent = '⚠️ 외부 퍼가기가 제한된 영상이거나 잘못된 링크입니다.';
+        }
+      }
+    });
+  }
+
+  bindTap(document.getElementById('ytLoadBtn'), () => {
+    const url = document.getElementById('ytUrlInput').value;
+    const vid = extractYouTubeId(url);
+    if (!vid) {
+      trackStatus.textContent = '⚠️ 올바른 유튜브 링크를 입력해 주세요!';
+      return;
+    }
+    stopAllSources();
+    state.mode = 'youtube';
+    if (ytApiReady) {
+      createOrLoadYtPlayer(vid);
+    } else {
+      pendingVideoId = vid;
+      loadYouTubeApi();
+      trackStatus.textContent = '📺 유튜브 플레이어를 불러오는 중...';
+    }
+  });
+
+  // 유튜브 미니 플레이어 접기/닫기/템포 조절
+  bindTap(document.getElementById('ytToggleVisBtn'), () => {
+    const box = document.getElementById('ytVideoBox');
+    const btn = document.getElementById('ytToggleVisBtn');
+    const isMin = box.classList.toggle('minimized');
+    btn.textContent = isMin ? '펼치기' : '접기';
+  });
+
+  bindTap(document.getElementById('ytCloseBtn'), () => {
+    document.getElementById('ytFloating').classList.remove('visible');
+    if (ytPlayer && typeof ytPlayer.stopVideo === 'function') {
+      try { ytPlayer.stopVideo(); } catch (e) {}
+    }
+    if (state.mode === 'youtube') {
+      state.isPlaying = false;
+      playPauseBtn.textContent = '▶';
+    }
+  });
+
+  const ytBpmSlider = document.getElementById('ytBpmSlider');
+  ytBpmSlider.addEventListener('input', () => {
+    state.bpm = parseInt(ytBpmSlider.value, 10);
+    document.getElementById('ytBpmLabel').textContent = `${state.bpm} BPM`;
+    bpmBadge.textContent = `${state.bpm} BPM`;
+  });
+
+  let tapTimes = [];
+  bindTap(document.getElementById('tapTempoBtn'), () => {
+    const now = performance.now();
+    tapTimes.push(now);
+    if (tapTimes.length > 5) tapTimes.shift();
+    if (tapTimes.length >= 2) {
+      let sum = 0;
+      for (let i = 1; i < tapTimes.length; i++) sum += tapTimes[i] - tapTimes[i - 1];
+      const avgMs = sum / (tapTimes.length - 1);
+      const calcBpm = Math.max(65, Math.min(180, Math.round(60000 / avgMs)));
+      state.bpm = calcBpm;
+      ytBpmSlider.value = calcBpm;
+      document.getElementById('ytBpmLabel').textContent = `${calcBpm} BPM`;
+      bpmBadge.textContent = `${calcBpm} BPM`;
+    }
+    state.beatPulse = 1.0;
+  });
+
+  // 통합 재생/일시정지 버튼
+  bindTap(playPauseBtn, () => {
+    if (state.mode === 'idle') {
+      startDemoBeat();
+      return;
+    }
+    if (state.mode === 'file') {
+      ensureAudioContext();
+      if (htmlAudio.paused) {
+        htmlAudio.play();
+        state.isPlaying = true;
+        playPauseBtn.textContent = '⏸';
+      } else {
+        htmlAudio.pause();
+        state.isPlaying = false;
+        playPauseBtn.textContent = '▶';
+      }
+    } else if (state.mode === 'demo') {
+      if (state.isPlaying) {
+        stopAllSources();
+      } else {
+        startDemoBeat();
+      }
+    } else if (state.mode === 'youtube' && ytPlayer) {
+      if (state.isPlaying) {
+        ytPlayer.pauseVideo();
+      } else {
+        ytPlayer.playVideo();
+      }
+    }
+  });
+
+  // ==========================================
+  // 파티클 & 배경 캔버스 렌더링 엔진
+  // ==========================================
+  const weatherParticles = Array.from({ length: 70 }, () => ({
+    x: Math.random(),
+    y: Math.random(),
+    speed: 0.4 + Math.random() * 0.8,
+    size: 2 + Math.random() * 4,
+    drift: (Math.random() - 0.5) * 0.3
+  }));
+
+  const musicNotes = [];
+  function spawnMusicNote(x, y) {
+    const symbols = ['♪', '♫', '♬', '💛', '✨'];
+    musicNotes.push({
+      x,
+      y,
+      vx: (Math.random() - 0.5) * 1.6,
+      vy: -1.4 - Math.random() * 1.4,
+      alpha: 1,
+      char: symbols[Math.floor(Math.random() * symbols.length)],
+      size: 16 + Math.random() * 10
+    });
+  }
+
+  function resizeCanvas() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = window.innerWidth * dpr;
+    canvas.height = window.innerHeight * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  window.addEventListener('resize', resizeCanvas);
+  resizeCanvas();
+
+  function drawBackground(w, h, t) {
+    const isNight = state.time === 'night';
+    const season = state.season;
+
+    // 1. 공원
+    if (state.bg === 'park') {
+      const skyGrad = ctx.createLinearGradient(0, 0, 0, h * 0.65);
+      if (isNight) {
+        skyGrad.addColorStop(0, '#0f172a');
+        skyGrad.addColorStop(1, '#1e293b');
+      } else if (season === 'autumn') {
+        skyGrad.addColorStop(0, '#f59e0b');
+        skyGrad.addColorStop(1, '#fef3c7');
+      } else {
+        skyGrad.addColorStop(0, '#38bdf8');
+        skyGrad.addColorStop(1, '#bae6fd');
+      }
+      ctx.fillStyle = skyGrad;
+      ctx.fillRect(0, 0, w, h);
+
+      // 해 또는 달
+      ctx.fillStyle = isNight ? '#fef08a' : '#fde047';
+      ctx.beginPath();
+      ctx.arc(w * 0.82, h * 0.18, 30 + state.bassEnergy * 6, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 잔디 언덕
+      const groundColor = isNight
+        ? '#14532d'
+        : season === 'winter' ? '#e2e8f0'
+        : season === 'autumn' ? '#b45309'
+        : '#4ade80';
+      ctx.fillStyle = groundColor;
+      ctx.beginPath();
+      ctx.moveTo(0, h * 0.6);
+      ctx.quadraticCurveTo(w * 0.5, h * 0.52, w, h * 0.6);
+      ctx.lineTo(w, h);
+      ctx.lineTo(0, h);
+      ctx.fill();
+
+      // 나무들
+      const foliageColor = season === 'spring' ? '#f9a8d4'
+        : season === 'autumn' ? '#ea580c'
+        : season === 'winter' ? '#cbd5e1'
+        : '#16a34a';
+      [0.14, 0.86].forEach(rx => {
+        ctx.fillStyle = '#78350f';
+        ctx.fillRect(w * rx - 10, h * 0.45, 20, h * 0.17);
+        ctx.fillStyle = foliageColor;
+        ctx.beginPath();
+        ctx.arc(w * rx, h * 0.42, 46 + state.bassEnergy * 5, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+
+    // 2. 거리
+    else if (state.bg === 'street') {
+      ctx.fillStyle = isNight ? '#090d16' : '#7dd3fc';
+      ctx.fillRect(0, 0, w, h);
+
+      // 빌딩 실루엣
+      const bColors = isNight ? ['#1e293b', '#334155', '#0f172a'] : ['#94a3b8', '#cbd5e1', '#64748b'];
+      for (let i = 0; i < 7; i++) {
+        const bw = w / 6;
+        const bh = h * (0.28 + ((i * 37) % 25) / 100);
+        const bx = i * (bw * 0.92);
+        const by = h * 0.62 - bh;
+        ctx.fillStyle = bColors[i % bColors.length];
+        ctx.fillRect(bx, by, bw - 4, bh);
+
+        // 창문 불빛
+        ctx.fillStyle = isNight ? '#fde047' : '#e0f2fe';
+        for (let wy = by + 12; wy < h * 0.58; wy += 24) {
+          for (let wx = bx + 10; wx < bx + bw - 16; wx += 20) {
+            ctx.fillRect(wx, wy, 10, 12);
+          }
+        }
+      }
+      // 아스팔트 도로
+      ctx.fillStyle = '#334155';
+      ctx.fillRect(0, h * 0.62, w, h * 0.38);
+      ctx.strokeStyle = '#facc15';
+      ctx.lineWidth = 4;
+      ctx.setLineDash([28, 22]);
+      ctx.beginPath();
+      ctx.moveTo(0, h * 0.78);
+      ctx.lineTo(w, h * 0.78);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    // 3. 동물들이 있는 클럽
+    else if (state.bg === 'club') {
+      ctx.fillStyle = '#090514';
+      ctx.fillRect(0, 0, w, h);
+
+      // 비트 반응형 이퀄라이저 바
+      const bars = 16;
+      const barW = w / bars;
+      for (let i = 0; i < bars; i++) {
+        const wave = Math.abs(Math.sin(t * 4 + i * 0.7)) * (0.3 + state.bassEnergy * 0.7);
+        const bh = h * 0.45 * wave;
+        ctx.fillStyle = `hsla(${(i * 22 + t * 60) % 360}, 85%, 55%, 0.32)`;
+        ctx.fillRect(i * barW + 2, h * 0.62 - bh, barW - 4, bh);
+      }
+
+      // 미러볼 & 레이저 조명
+      ctx.save();
+      ctx.translate(w * 0.5, h * 0.14);
+      for (let i = 0; i < 6; i++) {
+        const ang = Math.sin(t * 2 + i) * 0.8 + Math.PI / 2;
+        ctx.strokeStyle = `hsla(${(i * 60 + t * 90) % 360}, 95%, 65%, ${0.18 + state.bassEnergy * 0.25})`;
+        ctx.lineWidth = 18;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(Math.cos(ang) * h, Math.sin(ang) * h);
+        ctx.stroke();
+      }
+      ctx.fillStyle = '#e2e8f0';
+      ctx.beginPath();
+      ctx.arc(0, 0, 26 + state.bassEnergy * 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      // 스테이지 바닥
+      ctx.fillStyle = '#1e1b4b';
+      ctx.fillRect(0, h * 0.62, w, h * 0.38);
+
+      // 클럽 동물 관객 실루엣 (토끼, 곰, 강아지)
+      const crowd = [
+        { x: 0.1, type: 'rabbit' },
+        { x: 0.22, type: 'bear' },
+        { x: 0.78, type: 'dog' },
+        { x: 0.9, type: 'rabbit' }
+      ];
+      crowd.forEach((c, idx) => {
+        const bounce = Math.abs(Math.sin(t * 6 + idx)) * (10 + state.bassEnergy * 18);
+        const cx = w * c.x;
+        const cy = h * 0.61 - bounce;
+        ctx.fillStyle = '#312e81';
+        ctx.beginPath();
+        ctx.arc(cx, cy, 22, 0, Math.PI * 2);
+        ctx.fill();
+        if (c.type === 'rabbit') {
+          ctx.fillRect(cx - 11, cy - 38, 7, 22);
+          ctx.fillRect(cx + 4, cy - 38, 7, 22);
+        } else {
+          ctx.beginPath();
+          ctx.arc(cx - 15, cy - 16, 8, 0, Math.PI * 2);
+          ctx.arc(cx + 15, cy - 16, 8, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      });
+    }
+
+    // 4. 아늑한 방
+    else if (state.bg === 'room') {
+      ctx.fillStyle = isNight ? '#292018' : '#f5e6d3';
+      ctx.fillRect(0, 0, w, h * 0.62);
+      ctx.fillStyle = isNight ? '#4a321f' : '#c69363';
+      ctx.fillRect(0, h * 0.62, w, h * 0.38);
+
+      // 창문 밖 풍경
+      const winW = Math.min(200, w * 0.38);
+      const winH = h * 0.24;
+      const wx = w * 0.5 - winW * 0.5;
+      const wy = h * 0.16;
+      ctx.fillStyle = isNight ? '#0f172a' : '#bae6fd';
+      ctx.fillRect(wx, wy, winW, winH);
+      ctx.strokeStyle = '#78350f';
+      ctx.lineWidth = 6;
+      ctx.strokeRect(wx, wy, winW, winH);
+
+      // 원형 러그
+      ctx.fillStyle = isNight ? '#7c2d12' : '#fed7aa';
+      ctx.beginPath();
+      ctx.ellipse(w * 0.5, h * 0.76, Math.min(240, w * 0.42), 48, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // 5. 비행기 안 & 6. 기차 안
+    else if (state.bg === 'plane' || state.bg === 'train') {
+      const isPlane = state.bg === 'plane';
+      ctx.fillStyle = isNight ? '#1e293b' : (isPlane ? '#e2e8f0' : '#d6d3d1');
+      ctx.fillRect(0, 0, w, h * 0.64);
+      ctx.fillStyle = isPlane ? '#334155' : '#57534e';
+      ctx.fillRect(0, h * 0.64, w, h * 0.36);
+
+      // 창문 3개
+      const winCount = 3;
+      for (let i = 0; i < winCount; i++) {
+        const cx = w * (0.22 + i * 0.28);
+        const cy = h * 0.32;
+        const ww = Math.min(96, w * 0.2);
+        const wh = h * 0.22;
+
+        ctx.save();
+        ctx.beginPath();
+        if (isPlane) {
+          ctx.roundRect(cx - ww / 2, cy - wh / 2, ww, wh, 32);
+        } else {
+          ctx.roundRect(cx - ww / 2, cy - wh / 2, ww, wh, 10);
+        }
+        ctx.clip();
+
+        // 창밖 하늘/풍경
+        ctx.fillStyle = isNight ? '#090d16' : '#38bdf8';
+        ctx.fillRect(cx - ww / 2, cy - wh / 2, ww, wh);
+
+        // 흘러가는 구름 또는 전봇대
+        const scroll = (t * (isPlane ? 90 : 180) + i * 70) % (ww + 60);
+        ctx.fillStyle = isPlane ? 'rgba(255,255,255,0.8)' : '#22c55e';
+        if (isPlane) {
+          ctx.beginPath();
+          ctx.arc(cx + ww / 2 - scroll, cy + 10, 22, 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          ctx.fillRect(cx - ww / 2, cy + wh * 0.15, ww, wh * 0.4);
+        }
+        ctx.restore();
+
+        ctx.strokeStyle = '#64748b';
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        if (isPlane) ctx.roundRect(cx - ww / 2, cy - wh / 2, ww, wh, 32);
+        else ctx.roundRect(cx - ww / 2, cy - wh / 2, ww, wh, 10);
+        ctx.stroke();
+      }
+    }
+  }
+
+  function drawWeatherAndAtmosphere(w, h) {
+    // 비 / 눈 파티클
+    if (state.weather === 'rain' || state.weather === 'snow') {
+      const isRain = state.weather === 'rain';
+      ctx.strokeStyle = 'rgba(186, 230, 253, 0.72)';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.88)';
+      ctx.lineWidth = 2;
+
+      weatherParticles.forEach(p => {
+        p.y += (isRain ? 0.022 : 0.005) * p.speed;
+        p.x += isRain ? -0.004 : Math.sin(p.y * 12) * 0.002;
+        if (p.y > 1) { p.y = -0.05; p.x = Math.random(); }
+        if (p.x < 0) p.x += 1;
+        if (p.x > 1) p.x -= 1;
+
+        const px = p.x * w;
+        const py = p.y * h;
+        if (isRain) {
+          ctx.beginPath();
+          ctx.moveTo(px, py);
+          ctx.lineTo(px - 4, py + 14);
+          ctx.stroke();
+        } else {
+          ctx.beginPath();
+          ctx.arc(px, py, p.size, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      });
+    }
+
+    // 안개 오버레이
+    if (state.weather === 'fog') {
+      const fogGrad = ctx.createLinearGradient(0, h * 0.2, 0, h);
+      fogGrad.addColorStop(0, 'rgba(226, 232, 240, 0.18)');
+      fogGrad.addColorStop(1, 'rgba(226, 232, 240, 0.56)');
+      ctx.fillStyle = fogGrad;
+      ctx.fillRect(0, 0, w, h);
+    }
+  }
+
+  function drawDancingCat(catCfg, cx, baseY, scale, t) {
+    const breed = BREEDS[catCfg.breed] || BREEDS.cheese;
+    const phase = catCfg.phase;
+    const beat = state.isPlaying ? state.bassEnergy : 0.08;
+    const treble = state.isPlaying ? state.trebleEnergy : 0.05;
+
+    // 춤 모션 계산
+    const danceFreq = (state.bpm / 60) * Math.PI;
+    const bounce = state.isPlaying
+      ? Math.abs(Math.sin(t * danceFreq + phase)) * (26 + beat * 34)
+      : Math.abs(Math.sin(t * 2.2 + phase)) * 4;
+    const sway = state.isPlaying
+      ? Math.sin(t * danceFreq * 0.5 + phase) * (0.14 + beat * 0.14)
+      : Math.sin(t * 1.5 + phase) * 0.03;
+    const squashX = 1 + (bounce < 6 ? beat * 0.12 : -beat * 0.06);
+    const squashY = 1 - (bounce < 6 ? beat * 0.12 : -beat * 0.06);
+
+    // 바닥 그림자
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.28)';
+    ctx.beginPath();
+    ctx.ellipse(cx, baseY + 12 * scale, (48 - bounce * 0.25) * scale, 11 * scale, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.save();
+    ctx.translate(cx, baseY - bounce);
+    ctx.rotate(sway);
+    ctx.scale(scale * squashX, scale * squashY);
+
+    // 꼬리 흔들기
+    const tailWag = Math.sin(t * danceFreq * 1.5 + phase) * 0.45;
+    ctx.save();
+    ctx.translate(32, -26);
+    ctx.rotate(tailWag);
+    ctx.strokeStyle = breed.body;
+    ctx.lineWidth = 12;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.quadraticCurveTo(26, -18, 22, -42);
+    ctx.stroke();
+    ctx.restore();
+
+    // 몸통
+    ctx.fillStyle = breed.body;
+    ctx.beginPath();
+    ctx.ellipse(0, -34, 34, 38, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 배 털
+    ctx.fillStyle = breed.belly;
+    ctx.beginPath();
+    ctx.ellipse(0, -30, 20, 26, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 삼색냥 얼룩
+    if (catCfg.breed === 'calico') {
+      ctx.fillStyle = breed.patch2;
+      ctx.beginPath();
+      ctx.arc(-20, -40, 12, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // 춤추는 양팔
+    const armWaveL = Math.sin(t * danceFreq + phase) * 0.75 - 0.5;
+    const armWaveR = -Math.sin(t * danceFreq + phase) * 0.75 + 0.5;
+
+    [-1, 1].forEach((dir, idx) => {
+      ctx.save();
+      ctx.translate(dir * 28, -46);
+      ctx.rotate(idx === 0 ? armWaveL : armWaveR);
+      ctx.fillStyle = breed.body;
+      ctx.beginPath();
+      ctx.roundRect(-7, -6, 14, 30, 7);
+      ctx.fill();
+      ctx.fillStyle = breed.belly;
+      ctx.beginPath();
+      ctx.arc(0, 22, 7, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    });
+
+    // 리듬 스텝 밟는 두 발
+    const footLiftL = Math.max(0, Math.sin(t * danceFreq + phase)) * 10;
+    const footLiftR = Math.max(0, -Math.sin(t * danceFreq + phase)) * 10;
+    ctx.fillStyle = breed.belly;
+    ctx.beginPath();
+    ctx.ellipse(-15, -2 - footLiftL, 12, 8, 0, 0, Math.PI * 2);
+    ctx.ellipse(15, -2 - footLiftR, 12, 8, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 머리 그룹
+    ctx.save();
+    ctx.translate(0, -82);
+    ctx.rotate(-sway * 0.6);
+
+    // 귀 (고음에 쫑긋)
+    const earTwitch = treble * 0.18;
+    [-1, 1].forEach(dir => {
+      ctx.save();
+      ctx.translate(dir * 24, -22);
+      ctx.rotate(dir * (0.15 + earTwitch));
+      ctx.fillStyle = breed.body;
+      ctx.beginPath();
+      ctx.moveTo(-14, 8);
+      ctx.lineTo(0, -24);
+      ctx.lineTo(14, 8);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.fillStyle = breed.earIn;
+      ctx.beginPath();
+      ctx.moveTo(-8, 4);
+      ctx.lineTo(0, -15);
+      ctx.lineTo(8, 4);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    });
+
+    // 사용자 사진이 업로드된 경우 원형 얼굴 프레임 렌더링
+    if (catCfg.photo) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(0, 0, 38, 0, Math.PI * 2);
+      ctx.closePath();
+      ctx.clip();
+      ctx.drawImage(catCfg.photo, -38, -38, 76, 76);
+      ctx.restore();
+
+      ctx.strokeStyle = breed.body;
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.arc(0, 0, 38, 0, Math.PI * 2);
+      ctx.stroke();
+    } else {
+      // 일러스트 얼굴
+      ctx.fillStyle = breed.body;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 40, 33, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 삼색냥 얼굴 얼룩
+      if (catCfg.breed === 'calico') {
+        ctx.fillStyle = breed.stripe;
+        ctx.beginPath();
+        ctx.arc(-22, -14, 15, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = breed.patch2;
+        ctx.beginPath();
+        ctx.arc(22, -12, 14, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // 이마 태비 줄무늬
+      if (catCfg.breed === 'cheese' || catCfg.breed === 'mackerel') {
+        ctx.strokeStyle = breed.stripe;
+        ctx.lineWidth = 3;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(-12, -22);
+        ctx.lineTo(-6, -14);
+        ctx.lineTo(0, -22);
+        ctx.lineTo(6, -14);
+        ctx.lineTo(12, -22);
+        ctx.stroke();
+      }
+
+      // 눈 (신나면 반달 눈웃음, 평소는 동그란 눈)
+      if (state.isPlaying && beat > 0.55) {
+        ctx.strokeStyle = '#1e293b';
+        ctx.lineWidth = 3;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.arc(-14, -2, 6, Math.PI, 0);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(14, -2, 6, Math.PI, 0);
+        ctx.stroke();
+      } else {
+        ctx.fillStyle = breed.eye;
+        ctx.beginPath();
+        ctx.arc(-14, -2, 6.5, 0, Math.PI * 2);
+        ctx.arc(14, -2, 6.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#0f172a';
+        ctx.beginPath();
+        ctx.arc(-14, -2, 3.5, 0, Math.PI * 2);
+        ctx.arc(14, -2, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(-15.5, -4, 1.6, 0, Math.PI * 2);
+        ctx.arc(12.5, -4, 1.6, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // 분홍 코와 입
+      ctx.fillStyle = '#fb7185';
+      ctx.beginPath();
+      ctx.arc(0, 7, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = catCfg.breed === 'black' ? '#cbd5e1' : '#475569';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(-4, 11, 4, 0, Math.PI);
+      ctx.arc(4, 11, 4, 0, Math.PI);
+      ctx.stroke();
+
+      // 수염
+      ctx.strokeStyle = catCfg.breed === 'black' ? 'rgba(255,255,255,0.5)' : 'rgba(71,85,105,0.55)';
+      ctx.lineWidth = 1.5;
+      [-1, 1].forEach(dir => {
+        ctx.beginPath();
+        ctx.moveTo(dir * 20, 6);
+        ctx.lineTo(dir * 42, 3);
+        ctx.moveTo(dir * 20, 11);
+        ctx.lineTo(dir * 42, 12);
+        ctx.stroke();
+      });
+    }
+
+    ctx.restore();
+    ctx.restore();
+  }
+
+  // 메인 애니메이션 루프
+  let lastNoteSpawn = 0;
+  function renderLoop(nowMs) {
+    const t = nowMs * 0.001;
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+
+    // 실시간 오디오 주파수 분석
+    if (state.isPlaying) {
+      if (state.mode === 'file' && analyser && freqData) {
+        analyser.getByteFrequencyData(freqData);
+        let bassSum = 0;
+        for (let i = 0; i < 10; i++) bassSum += freqData[i];
+        state.bassEnergy = Math.min(1, (bassSum / 10) / 210);
+
+        let trebSum = 0;
+        for (let i = 20; i < 60; i++) trebSum += freqData[i];
+        state.trebleEnergy = Math.min(1, (trebSum / 40) / 160);
+      } else if (state.mode === 'youtube') {
+        const beatPhase = (t * (state.bpm / 60)) % 1;
+        state.bassEnergy = Math.pow(1 - beatPhase, 2.2);
+        state.trebleEnergy = 0.45 + 0.4 * Math.abs(Math.sin(t * (state.bpm / 30)));
+      } else if (state.mode === 'demo') {
+        state.bassEnergy *= 0.88;
+        state.trebleEnergy *= 0.88;
+      }
+
+      if (state.bassEnergy > 0.68 && nowMs - lastNoteSpawn > 320) {
+        lastNoteSpawn = nowMs;
+        spawnMusicNote(w * (0.25 + Math.random() * 0.5), h * 0.48);
+      }
+    } else {
+      state.bassEnergy *= 0.9;
+      state.trebleEnergy *= 0.9;
+    }
+
+    ctx.clearRect(0, 0, w, h);
+    drawBackground(w, h, t);
+
+    // 고양이 배치 계산 (1~4마리)
+    const count = state.catCount;
+    const baseY = h * 0.72;
+    const baseScale = count === 1 ? Math.min(1.25, w / 340)
+      : count === 2 ? Math.min(1.05, w / 420)
+      : count === 3 ? Math.min(0.88, w / 500)
+      : Math.min(0.76, w / 560);
+
+    for (let i = 0; i < count; i++) {
+      const ratio = count === 1 ? 0.5 : (0.18 + (0.64 / (count - 1)) * i);
+      drawDancingCat(state.cats[i], w * ratio, baseY, baseScale, t);
+    }
+
+    // 음표 파티클 렌더링
+    for (let i = musicNotes.length - 1; i >= 0; i--) {
+      const n = musicNotes[i];
+      n.x += n.vx;
+      n.y += n.vy;
+      n.alpha -= 0.015;
+      if (n.alpha <= 0) {
+        musicNotes.splice(i, 1);
+        continue;
+      }
+      ctx.save();
+      ctx.globalAlpha = n.alpha;
+      ctx.font = `bold ${n.size}px sans-serif`;
+      ctx.fillStyle = '#fde047';
+      ctx.fillText(n.char, n.x, n.y);
+      ctx.restore();
+    }
+
+    drawWeatherAndAtmosphere(w, h);
+    requestAnimationFrame(renderLoop);
+  }
+
+  requestAnimationFrame(renderLoop);
+})();
+</script>
+</body>
+</html>
